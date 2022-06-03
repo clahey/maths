@@ -1,5 +1,5 @@
 module clahey.maths.Category where
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; sym)
+open import Relation.Binary.PropositionalEquality using (_≡_; cong)
 open import Data.Nat using (ℕ; zero; suc; _+_; _*_; _^_; _∸_; _≤?_; _≤_; z≤n; s≤s)
 open import Data.Nat.Properties using (≤-reflexive; ≤-trans; +-assoc; +-identityˡ; +-identityʳ; *-assoc; *-identityˡ; *-identityʳ)
 open import Level using (Lift; lift)
@@ -13,39 +13,35 @@ open import Relation.Nullary.Decidable using (⌊_⌋)
 open import Relation.Binary using (Rel; IsPreorder; IsDecEquivalence; IsEquivalence)
 open import Relation.Binary.Definitions using (Decidable)
 open import Data.Bool using (true; false)
-open import Function.Base using (flip)
 
+fid : {l : Level} → Set l → Set l
+fid a = a
 
-record Monoid {l e : Level} : Set (lsuc (l ⊔ e)) where
-  infix  4 _≈_
-  infixr 9 _∘_
-  field
-    Underlying : Set l
-    _≈_ : Rel Underlying e
-    isEquivalence : IsEquivalence _≈_
-    _∘_ : Underlying → Underlying → Underlying
-    ε : Underlying
-    assoc : {f g h : Underlying} → (f ∘ g) ∘ h ≈ f ∘ (g ∘ h)
-    sym-assoc : {f g h : Underlying} → f ∘ (g ∘ h) ≈ (f ∘ g) ∘ h
-    idˡ : {f : Underlying} → ε ∘ f ≈ f
-    idʳ : {f : Underlying} → f ∘ ε ≈ f
-    ∘-resp-≈ : {f g h i : Underlying} → f ≈ g → h ≈ i → f ∘ h ≈ g ∘ i
     
-record Category {o l e : Level} : Set (lsuc (o ⊔ l ⊔ e)) where
+record Category (o l e : Level) : Set (lsuc (o ⊔ l ⊔ e)) where
   infix  4 _≈_ _⇒_
   infixr 9 _∘_
   field
     Obj : Set o
     _⇒_ : Obj → Obj → Set l
-    _≈_ : ∀ {A B} → Rel (A ⇒ B) e
-    isEquivalence : IsEquivalence {l} {e} _≈_
-    id : {a : Obj} → a ⇒ a
+    _≈_ : ∀ {A B : Obj} → Rel (A ⇒ B) e
+    isEquivalence : ∀ {A B} → IsEquivalence {l} {e} (_≈_ {A} {B})
+    id : {A : Obj} → A ⇒ A
     _∘_ : {A B C : Obj} → B ⇒ C → A ⇒ B → A ⇒ C
     assoc : {A B C D : Obj} → {f : C ⇒ D} → {g : B ⇒ C} → {h : A ⇒ B} → (f ∘ g) ∘ h ≈ f ∘ (g ∘ h)
     sym-assoc : {A B C D : Obj} → {f : C ⇒ D} → {g : B ⇒ C} → {h : A ⇒ B} → f ∘ (g ∘ h) ≈ (f ∘ g) ∘ h
     idˡ : {A B : Obj} → {f : A ⇒ B} → id ∘ f ≈ f
     idʳ : {A B : Obj} → {f : A ⇒ B} → f ∘ id ≈ f
-    ∘-resp-≈ : {A B C : Obj} {f g : B ⇒ C} {h i : A ⇒ B} → f ≈ g → h ≈ i → f ∘ h ≈ g ∘ i
+    ∘-resp-≈ : {A B C : Obj} {f₁ f₂ : B ⇒ C} {g₁ g₂ : A ⇒ B} → f₁ ≈ f₂ → g₁ ≈ g₂ → f₁ ∘ g₁ ≈ f₂ ∘ g₂
+
+  o-level : Level
+  o-level = o
+
+  l-level : Level
+  l-level = l
+
+  e-level : Level
+  e-level = e
 
   dom : {A B : Obj} → A ⇒ B → Obj
   dom {A} {_} m = A
@@ -53,198 +49,55 @@ record Category {o l e : Level} : Set (lsuc (o ⊔ l ⊔ e)) where
   cod : {A B : Obj} → A ⇒ B → Obj
   cod  {_} {B} m = B
 
-data One-Obj : Set where
-  𝟙 : One-Obj
-data One-Mor-𝟙-𝟙 : Set where
-  id₁ : One-Mor-𝟙-𝟙
-One-∘ : {l : Level} → One-Mor-𝟙-𝟙 → One-Mor-𝟙-𝟙 → One-Mor-𝟙-𝟙
-One-∘ id₁ id₁ = id₁
+
+private
+  variable
+    o l e : Level
+
+infix 10  _[_⇒_] _[_≈_] _[_∘_]
+
+_[_⇒_] : (c : Category o l e) → (A B : Category.Obj c) → Set l
+_[_⇒_] = Category._⇒_
+
+_[_≈_] : (c : Category o l e) → {A B : Category.Obj c} → Rel (c [ A ⇒ B ]) (Category.e-level c)
+_[_≈_] =  Category._≈_
+
+_[_∘_] : (c : Category o l e) → {A B C : Category.Obj c} → c [ B ⇒ C ] → c [ A ⇒ B ] → c [ A ⇒ C ]
+_[_∘_] = Category._∘_
+
+sym : {c : Category o l e} → {A B : Category.Obj c} → {f g : c [ A ⇒ B ] } → c [ f ≈ g ] → c [ g ≈ f ]
+sym {c = c} f≈g = IsEquivalence.sym (Category.isEquivalence c) f≈g
+
+trans : {c : Category o l e} → {A B : Category.Obj c} → {f g h : c [ A ⇒ B ]} → c [ f ≈ g ] → c [ g ≈ h ] → c [ f ≈ h ]
+trans {c = c} = IsEquivalence.trans (Category.isEquivalence c)
+
+refl : {c : Category o l e} → {A B : Category.Obj c} → {f : c [ A ⇒ B ]} → c [ f ≈ f ]
+refl {c = c} = IsEquivalence.refl (Category.isEquivalence c)
 
 
-One-idʳ :  {A B : One-Obj} {f : One-Mor-𝟙-𝟙} → id₁ ≡ f
-One-idʳ {𝟙} {𝟙} {id₁} = refl
+infix  1 ≈-begin_
+infixr 2 _≈⟨_⟩_
+infix  3 _≈-∎
 
-One-Mor : One-Obj → One-Obj → Set
-One-Mor 𝟙 𝟙 = One-Mor-𝟙-𝟙
+≈-begin_ : {c : Category o l e} → {A B : Category.Obj c} → {f g : c [ A ⇒ B ]} → c [ f ≈ g ] → c [ f ≈ g ]
+≈-begin_ f≈g = f≈g
 
-One-Category : {l : Level} → Category {lzero} {lzero}
-One-Category = record { Obj = One-Obj
---                      ; _⇒_ = One-Mor
-                      ; _⇒_ = λ 𝟙 𝟙 → One-Mor-𝟙-𝟙
-                      ; _≈_ = _≡_
-                      ; isEquivalence = Relation.Binary.PropositionalEquality.isEquivalence
-                      ; id = λ {_} → One-Mor-𝟙-𝟙.id₁
-                      ; _∘_ = λ id₁ id₁ → id₁
-                      ; assoc = refl
-                      ; sym-assoc = refl
-                      ; idˡ = refl
-                      ; idʳ = λ {A} {B} {f} → One-idʳ {A} {B} {f}
-                      ; ∘-resp-≈ = λ _ g → g
-                      }
+_≈⟨_⟩_ : {c : Category o l e} → {A B : Category.Obj c} → {g h : c [ A ⇒ B ]} → (f : c [ A ⇒ B ]) → c [ f ≈ g ] → c [ g ≈ h ] → c [ f ≈ h ]
+_≈⟨_⟩_ {c = c} f = trans {c = c}
 
-Nat-assoc : {a b c d : ℕ} {f : c ≤ d} {g : b ≤ c} {h : a ≤ b} → ≤-trans h (≤-trans g f) ≡ ≤-trans (≤-trans h g) f
-Nat-assoc {a = zero} {h = z≤n} = refl
-Nat-assoc {suc _} {suc _} {suc _} {suc _} {s≤s _} {s≤s _} {s≤s _} = cong s≤s Nat-assoc
+_≈-∎ : {c : Category o l e} → {A B : Category.Obj c} → (f : c [ A ⇒ B ]) → c [ f ≈ f ]
+_≈-∎ {c = c} f = refl {c = c}
 
-Nat-idˡ : {a b : ℕ} {f : a ≤ b} → ≤-trans f (≤-reflexive refl) ≡ f
-Nat-idˡ {a = zero} {f = z≤n} = refl
-Nat-idˡ {suc _} {suc _} {s≤s _} = cong s≤s Nat-idˡ
+congˡ : {c : Category o l e} → {A B C : Category.Obj c} → (f : c [ B ⇒ C ]) → {g₁ g₂ : c [ A ⇒ B ]} → c [ g₁ ≈ g₂ ] → c [ (c [ f ∘ g₁ ]) ≈ (c [ f ∘ g₂ ]) ]
+congˡ {c = c} f g≈g = Category.∘-resp-≈ c (refl {c = c}) g≈g
 
-Nat-idʳ : {a b : ℕ} {f : a ≤ b} → ≤-trans (≤-reflexive refl) f ≡ f
-Nat-idʳ {a = zero} {f = z≤n} = refl
-Nat-idʳ {suc _} {suc _} {s≤s _} = cong s≤s Nat-idʳ
+congʳ : {c : Category o l e} → {A B C : Category.Obj c} → {f₁ f₂ : c [ B ⇒ C ]} → (g : c [ A ⇒ B ]) →  c [ f₁ ≈ f₂ ] → c [ (c [ f₁ ∘ g ]) ≈ (c [ f₂ ∘ g ]) ]
+congʳ {c = c} g f≈f = Category.∘-resp-≈ c f≈f (refl {c = c})
 
-Nat-Category : Category
-Nat-Category = record { Obj = ℕ
-                         ; _⇒_ = λ m n → m ≤ n
-                         ; _≈_ = _≡_
-                         ; isEquivalence = Relation.Binary.PropositionalEquality.isEquivalence
-                         ; id = λ {n} → ≤-reflexive {n} refl
-                         ; _∘_ = λ b≤c a≤b → ≤-trans a≤b b≤c
-                         ; assoc = Nat-assoc
-                         ; sym-assoc = sym Nat-assoc
-                         ; idˡ = Nat-idˡ
-                         ; idʳ = Nat-idʳ
-                         ; ∘-resp-≈ = ∘-resp-≈
-                         }
-  where
-    ∘-resp-≈ : {a b c : ℕ} → {f g : b ≤ c} → {h i : a ≤ b} → f ≡ g → h ≡ i → ≤-trans h f ≡ ≤-trans i g
-    ∘-resp-≈ {f = f} {g = .f} {h = h} {i = .h} refl refl = refl
-
-data Monoid-Obj {l : Level} : Set where
-  monoid-Singleton : Monoid-Obj
-
-monoid-Category : {l e : Level} → Monoid {l} {e} → Category {lzero} {l} {e}
-monoid-Category record { Underlying = Underlying
-                       ; _≈_ = _≈_
-                       ; isEquivalence = isEquivalence
-                       ; _∘_ = _∘_
-                       ; ε = ε
-                       ; assoc = assoc
-                       ; sym-assoc = sym-assoc
-                       ; idˡ = idˡ
-                       ; idʳ = idʳ
-                       ; ∘-resp-≈ = ∘-resp-≈
-                       } = record
-                             { Obj = Monoid-Obj {lzero}
-                             ; _⇒_ = λ _ _ → Underlying
-                             ; _≈_ = _≈_
-                             ; isEquivalence = isEquivalence
-                             ; id = λ {_} → ε
-                             ; _∘_ = _∘_
-                             ; assoc = λ {_} {_} {_} {_} {f} {g} {h} → assoc {f} {g} {h}
-                             ; sym-assoc = λ {_} {_} {_} {_} {f} {g} {h} → sym-assoc {f} {g} {h}
-                             ; idˡ = λ {_} {_} {f} → idˡ {f}
-                             ; idʳ = λ {_} {_} {f} → idʳ {f}
-                             ; ∘-resp-≈ = λ {A} {B} {C} → ∘-resp-≈
-                             }
-
-Nat-monoid-+ : Monoid {lzero}
-Nat-monoid-+ = record
-                 { Underlying = ℕ
-                 ; _≈_ = _≡_
-                 ; isEquivalence = Relation.Binary.PropositionalEquality.isEquivalence                 
-                 ; _∘_ = _+_
-                 ; ε = 0
-                 ; assoc = λ {a} {b} {c} → +-assoc a b c
-                 ; sym-assoc = λ {a} {b} {c} → sym (+-assoc a b c)
-                 ; idˡ = +-identityˡ _
-                 ; idʳ = +-identityʳ _
-                 ; ∘-resp-≈ = ∘-resp-≈
-                 }
-  where
-    ∘-resp-≈ : {a b c d : ℕ} → a ≡ b → c ≡ d → a + c ≡ b + d
-    ∘-resp-≈ {a} {.a} {c} {.c} refl refl = refl
-
-Nat-category-+ : Category {lzero} {lzero}
-Nat-category-+ = monoid-Category Nat-monoid-+
-
-Nat-monoid-* : Monoid {lzero}
-Nat-monoid-* = record
-                 { Underlying = ℕ
-                 ; _≈_ = _≡_
-                 ; isEquivalence = Relation.Binary.PropositionalEquality.isEquivalence                 
-                 ; _∘_ = _*_
-                 ; ε = 1
-                 ; assoc = λ {a} {b} {c} → *-assoc a b c
-                 ; sym-assoc = λ {a} {b} {c} → sym (*-assoc a b c)
-                 ; idˡ = *-identityˡ _
-                 ; idʳ = *-identityʳ _
-                 ; ∘-resp-≈ = ∘-resp-≈
-                 }
-  where
-    ∘-resp-≈ : {a b c d : ℕ} → a ≡ b → c ≡ d → a * c ≡ b * d
-    ∘-resp-≈ {a} {.a} {c} {.c} refl refl = refl
-
-Nat-category-* : Category {lzero} {lzero}
-Nat-category-* = monoid-Category Nat-monoid-*
-
-List-monoid-++ : {l : Level} → (A : Set l) → Monoid {l} {l}
-List-monoid-++ A = record
-                     { Underlying = List A
-                     ; _≈_ = _≡_
-                     ; isEquivalence = Relation.Binary.PropositionalEquality.isEquivalence                 
-                     ; _∘_ = _++_
-                     ; ε = []
-                     ; assoc = λ {f} {g} {h} → assoc {f} {g} {h}
-                     ; sym-assoc = λ {f} {g} {h} → sym (assoc {f} {g} {h})
-                     ; idˡ = refl
-                     ; idʳ = idʳ
-                     ; ∘-resp-≈ = ∘-resp-≈
-                 }
-  where
-    assoc : {f g h : List A} → (f ++ g) ++ h ≡ f ++ g ++ h
-    assoc {[]} {g} {h} = refl
-    assoc {a ∷ f} {g} {h} = cong (a ∷_) (assoc {f} {g} {h})
-
-    idʳ : {f : List A} → f ++ [] ≡ f
-    idʳ {[]} = refl
-    idʳ {a ∷ f} = cong (a ∷_) (idʳ {f})
-
-    ∘-resp-≈ : {a b c d : List A} → a ≡ b → c ≡ d → a ++ c ≡ b ++ d
-    ∘-resp-≈ {a} {.a} {c} {.c} refl refl = refl
-
-List-Pointwise-monoid-++ : {l e : Level} → (A : Set l) → (_≈_ : Rel A e) → IsEquivalence _≈_ → Monoid {l} {l ⊔ e}
-List-Pointwise-monoid-++ A _≈_ isEquivalence = record
-                     { Underlying = List A
-                     ; _≈_ = Pointwise _≈_
-                     ; isEquivalence = Data.List.Relation.Binary.Pointwise.isEquivalence isEquivalence
-                     ; _∘_ = _++_
-                     ; ε = []
-                     ; assoc = λ {f} {g} {h} → assoc {f} {g} {h}
-                     ; sym-assoc = λ {f} {g} {h} → IsEquivalence.sym (Data.List.Relation.Binary.Pointwise.isEquivalence isEquivalence) (assoc {f} {g} {h})
-                     ; idˡ = IsEquivalence.refl ((Data.List.Relation.Binary.Pointwise.isEquivalence isEquivalence))
-                     ; idʳ = idʳ
-                     ; ∘-resp-≈ = ∘-resp-≈
-                     }
-  where
-    assoc : {f g h : List A} → Pointwise _≈_ ((f ++ g) ++ h) (f ++ g ++ h)
-    assoc {[]} {g} {h} = IsEquivalence.refl (Data.List.Relation.Binary.Pointwise.isEquivalence isEquivalence)
-    assoc {a ∷ f} {g} {h} = isEquivalence .IsEquivalence.refl Pointwise.∷ assoc {f} {g} {h}
-
-    idʳ : {f : List A} → Pointwise _≈_ (f ++ []) f
-    idʳ {[]} = IsEquivalence.refl (Data.List.Relation.Binary.Pointwise.isEquivalence isEquivalence)
-    idʳ {a ∷ f} =  isEquivalence .IsEquivalence.refl Pointwise.∷ idʳ {f}
-
-    ∘-resp-≈ : {a b c d : List A} → Pointwise _≈_ a b → Pointwise _≈_ c d → Pointwise _≈_ (a ++ c) (b ++ d)
-    ∘-resp-≈ {a} {b} {c} {d} a≈b c≈d = Data.List.Relation.Binary.Pointwise.++⁺ a≈b c≈d
-
-preorder-Category : {a l e : Level} → {A : Set a} → {_~_ : Rel A l} → IsPreorder _≡_ _~_ → Category {a} {l} {lzero}
-preorder-Category {a} {l} {e} {A} {_~_} record { isEquivalence = isEquivalence
-                                               ; reflexive = reflexive
-                                               ; trans = trans } = record
-                                                           { Obj = A
-                                                           ; _⇒_ = λ a b → a ~ b
-                                                           ; _≈_ = λ _ _ → ⊤
-                                                           ; id = reflexive refl
-                                                           ; _∘_ = flip trans
-                                                           ; assoc = tt
-                                                           ; sym-assoc = tt
-                                                           ; idˡ = tt
-                                                           ; idʳ = tt
-                                                           }
--- Error message 
--- /home/clahey/clahey/maths/Category.agda:147,65-83
--- Could not parse the application IsPreorder _≡_ _~_
--- Operators used in the grammar:
--- when scope checking IsPreorder _≡_ _~_
+record Functor {o l e o' l' e' : Level} (c : Category o l e) (c' : Category o' l' e') : Set (lsuc (o ⊔ l ⊔ e ⊔ o' ⊔ l' ⊔ e')) where
+  field
+    obj : Category.Obj c → Category.Obj c'
+    morph : {A B : Category.Obj c} → c [ A ⇒ B ] → c' [ obj A ⇒ obj B ]
+    identity : ∀ {A : Category.Obj c} → c' [ morph {A} {A} (Category.id c) ≈ Category.id c' ]
+    resp-∘ : ∀ {A B C : Category.Obj c} → {f : c [ B ⇒ C ]} → {g : c [ A ⇒ B ]}
+      → c' [ morph {A} {C} (c [ f ∘ g ]) ≈ c' [ morph {B} {C} f ∘ morph {A} {B} g ] ]
