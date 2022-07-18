@@ -2,7 +2,7 @@ module clahey.maths.SetTheory.NbgTheory where
 
 open import Agda.Primitive using (Level; lsuc; lzero)
 open import Function.Base using (case_of_; _$_; _∘_; id; const)
-open import Relation.Binary.PropositionalEquality using (_≡_; cong; refl; _≢_; sym; trans; cong₂; subst; module ≡-Reasoning)
+open import Relation.Binary.PropositionalEquality using (_≡_; cong; refl; _≢_; sym; trans; cong₂; subst; subst₂; module ≡-Reasoning)
 open ≡-Reasoning
 open import Relation.Nullary using (¬_; Dec; yes; no)
 open import Relation.Nullary.Negation using (contraposition)
@@ -14,6 +14,7 @@ open import Data.Nat.Properties using (≤-trans; m≤m⊔n; n≤m⊔n; suc-inje
 open import Data.Vec using (Vec; lookup; []; _∷_; _++_; initLast; init; last; foldl₁; foldl; head; tail)
 open import Data.Fin using (fromℕ<; Fin)
 open import clahey.maths.Whole using (ℕ⁺; toℕ)
+open import Data.Unit using (⊤; tt)
 
 
 -- Missing from standard-library version
@@ -46,8 +47,8 @@ LEM {l} = (A : Set l) → Dec A
 ⇔-refl : {A : Set} → A ⇔ A
 ⇔-refl = record { to = id ; from = id }
 
-⇔-transport : {A : Set} → {a b : A} → {P : A → Set} → a ≡ b → P a ⇔ P b
-⇔-transport refl = record { to = id ; from = id }
+⇔-subst : {A : Set} → {a b : A} → {P : A → Set} → a ≡ b → P a ⇔ P b
+⇔-subst refl = record { to = id ; from = id }
 
 ⇔-converse : {A B : Set} → A ⇔ B → (¬ A) ⇔ (¬ B)
 ⇔-converse record { to = to ; from = from } = record { to = contraposition from ; from = contraposition to }
@@ -88,15 +89,17 @@ _!!⊆_ : NbgSet → NbgSet → Set
 A !!⊆ B = proj₁ A ⊆ proj₁ B
 infix  8 _!!⊆_
 
-transport : {Type : Set} → {P : Type → Set} → {A B : Type} → A ≡ B → P A → P B
-transport refl pa = pa
+class-of : NbgSet → NbgClass
+class-of = proj₁
 
+_!!≡_ : NbgSet → NbgSet → ?
+a !!≡ b = class-of a ≡ class-of b
 
 record NbgTheory : Set (lsuc lzero) where
   field
     lem : LEM {lzero}
     extensionality : ∀ (A B : NbgClass) → (∀ (x : NbgSet) → x !∈ A ⇔ x !∈ B) → A ≡ B
-    pairing : ∀ (x y : NbgSet) → Σ[ p ∈ NbgSet ] (∀ (z : NbgSet) → z !!∈ p ⇔ (z ≡ x ⊎ z ≡ y))
+    pairing : ∀ (x y : NbgSet) → Σ[ p ∈ NbgSet ] (∀ (z : NbgSet) → z !!∈ p ⇔ (z !!≡ x ⊎ z !!≡ y))
 
   ¬¬A→A : {A : Set} → ¬ ¬ A → A
   ¬¬A→A {A} ¬¬a = case lem A of λ
@@ -106,10 +109,10 @@ record NbgTheory : Set (lsuc lzero) where
   pair : (x y : NbgSet) → NbgSet
   pair x y = proj₁ (pairing x y)
 
-  pair-rule : (x y z : NbgSet) → z !!∈ pair x y ⇔ (z ≡ x ⊎ z ≡ y)
+  pair-rule : (x y z : NbgSet) → z !!∈ pair x y ⇔ (z !!≡ x ⊎ z !!≡ y)
   pair-rule x y = proj₂ (pairing x y)
 
-  pair-ruleᵢ : (x y z : NbgSet) → z !!∈ pair x y → (z ≡ x ⊎ z ≡ y)
+  pair-ruleᵢ : (x y z : NbgSet) → z !!∈ pair x y → (z !!≡ x ⊎ z !!≡ y)
   pair-ruleᵢ x y z = to (pair-rule x y z)
 
   pair-ruleₗ : (x y : NbgSet) → x !!∈ pair x y
@@ -228,6 +231,15 @@ open NbgTheory nbg
 ⊘-existence : Σ[ ⊘ ∈ NbgSet ] (∀ (y : NbgSet) → y !!∈ ⊘ ⇔ (Σ[ x ∈ NbgSet ] (x !!∈ ω × orderedPair x y !∈ ⊘-class)))
 ⊘-existence = replacement ⊘-class ω ⊘isFunction
 
+∁-involutory : (A : NbgClass) → A ≡ ∁ (∁ A)
+∁-involutory A = extensionality A (∁ (∁ A))
+  λ x → record { to = λ x∈A → ¬¬A→A λ ¬x∈∁∁A → to (∁-rule A x) x∈A (from (∁-rule (∁ A) x) ¬x∈∁∁A)
+                ; from = λ x∈∁∁A → ¬¬A→A λ ¬x∈A → contraposition (to (∁-rule (∁ A) x)) (A→¬¬A x∈∁∁A) (¬¬A→A (contraposition (from (∁-rule A x)) ¬x∈A))
+                }
+
+⊘≡∁V : ⊘-class ≡ ∁ V
+⊘≡∁V = ∁-involutory ⊘-class
+
 ⊘ : NbgSet
 ⊘ = proj₁ ⊘-existence
 
@@ -245,6 +257,19 @@ open NbgTheory nbg
 
 ⊘-empty : (x : NbgSet) → ¬ x !!∈ ⊘
 ⊘-empty = ⊘-rule
+
+⊘≡⊘-class : proj₁ ⊘ ≡ ⊘-class
+⊘≡⊘-class = extensionality (proj₁ ⊘) ⊘-class λ x → record { to = λ x∈⊘ → ⊥-elim (⊘-empty x x∈⊘) ; from = λ x∈⊘-class → ⊥-elim (⊘-class-empty x x∈⊘-class) }
+
+V-full : (x : NbgSet) → x !∈ V
+V-full x = from (∁-rule V x) ∁V-empty
+  where
+    empty = λ A → ¬ x !∈ A
+    ∁V-empty = subst empty ⊘≡∁V (⊘-class-empty x)
+
+V^1+ : (n : ℕ) → NbgClass
+V^1+ zero = V
+V^1+ (suc n) = ×V (V^1+ n)
 
 A⊎A⇒A : {A : Set} → A ⊎ A → A
 A⊎A⇒A (_⊎_.inj₁ a) = a
@@ -264,10 +289,10 @@ x∉x x x∈x with regularity (singleton x) ¬xx≡⊘
     ¬xx≡⊘ xx≡⊘ = ⊘-class-empty x (subst (x !∈_) xx≡⊘ x∈xx)
 ... | u , u∈xx , u∩xx≡⊘ = ⊘-class-empty x (subst (x !∈_) u∩xx≡⊘ x∈u∩xx)
   where
-    u≡x : u ≡ x
-    u≡x = A⊎A⇒A (pair-ruleᵢ x x u u∈xx)
+    u!!≡x : u !!≡ x
+    u!!≡x = A⊎A⇒A (pair-ruleᵢ x x u u∈xx)
     x∈u∩xx : x !∈ (u !!∩ singleton x)
-    x∈u∩xx = ∩-ruleᵢ (proj₁ u) (proj₁ (singleton x)) x (subst (x !!∈_) (sym u≡x) x∈x) (pair-ruleₗ x x)
+    x∈u∩xx = ∩-ruleᵢ (proj₁ u) (proj₁ (singleton x)) x (subst (x !∈_) (sym u!!≡x) x∈x) (pair-ruleₗ x x)
 
 ¬x∈y×y∈x : (x y : NbgSet) → ¬ (x !!∈ y × y !!∈ x)
 ¬x∈y×y∈x x y x∈y×y∈x with regularity (pair x y) ¬xy≡⊘
@@ -278,16 +303,16 @@ x∉x x x∈x with regularity (singleton x) ¬xx≡⊘
     ¬xy≡⊘ xy≡⊘ = ⊘-class-empty x (subst (x !∈_) xy≡⊘ x∈xy)
 ... | u , u∈xy , u∩xy≡⊘ with u≡x⊎u≡y
   where
-    u≡x⊎u≡y : u ≡ x ⊎ u ≡ y
+    u≡x⊎u≡y : u !!≡ x ⊎ u !!≡ y
     u≡x⊎u≡y = pair-ruleᵢ x y u u∈xy
 ... | _⊎_.inj₁ u≡x = ⊘-class-empty y (subst (y !∈_) u∩xy≡⊘ y∈u∩xy)
   where
     y∈u∩xy : y !∈ (u !!∩ pair x y)
-    y∈u∩xy = ∩-ruleᵢ (proj₁ u) (proj₁ (pair x y)) y (subst (y !!∈_) (sym u≡x) (proj₂ x∈y×y∈x)) (pair-ruleᵣ x y)
+    y∈u∩xy = ∩-ruleᵢ (proj₁ u) (proj₁ (pair x y)) y (subst (y !∈_) (sym u≡x) (proj₂ x∈y×y∈x)) (pair-ruleᵣ x y)
 ... | _⊎_.inj₂ u≡y = ⊘-class-empty x (subst (x !∈_) u∩xy≡⊘ x∈u∩xy)
   where
     x∈u∩xy : x !∈ (u !!∩ pair x y)
-    x∈u∩xy = ∩-ruleᵢ (proj₁ u) (proj₁ (pair x y)) x (subst (x !!∈_) (sym u≡y) (proj₁ x∈y×y∈x)) (pair-ruleₗ x y)
+    x∈u∩xy = ∩-ruleᵢ (proj₁ u) (proj₁ (pair x y)) x (subst (x !∈_) (sym u≡y) (proj₁ x∈y×y∈x)) (pair-ruleₗ x y)
 
 A⊎B×¬A⇒B : {A B : Set} → A ⊎ B → ¬ A → B
 A⊎B×¬A⇒B (_⊎_.inj₁ a) ¬a = ⊥-elim (¬a a)
@@ -297,13 +322,13 @@ A⊎B×¬B⇒A : {A B : Set} → A ⊎ B → ¬ B → A
 A⊎B×¬B⇒A (_⊎_.inj₁ a) ¬b = a
 A⊎B×¬B⇒A (_⊎_.inj₂ b) ¬b = ⊥-elim (¬b b)
 
-pair-inverseₗ : (a₁ b₁ a₂ b₂ : NbgSet) → pair a₁ b₁ ≡ pair a₂ b₂ → a₁ ≡ a₂ ⊎ a₁ ≡ b₂
-pair-inverseₗ a₁ b₁ a₂ b₂ a₁b₁≡a₂b₂ = to (pair-rule a₂ b₂ a₁) (subst (a₁ !!∈_) a₁b₁≡a₂b₂ (pair-ruleₗ a₁ b₁))
+pair-inverseₗ : (a₁ b₁ a₂ b₂ : NbgSet) → pair a₁ b₁ !!≡ pair a₂ b₂ → a₁ !!≡ a₂ ⊎ a₁ !!≡ b₂
+pair-inverseₗ a₁ b₁ a₂ b₂ a₁b₁≡a₂b₂ = to (pair-rule a₂ b₂ a₁) (subst (a₁ !∈_) a₁b₁≡a₂b₂ (pair-ruleₗ a₁ b₁))
 
-pair-inverseᵣ : (a₁ b₁ a₂ b₂ : NbgSet) → pair a₁ b₁ ≡ pair a₂ b₂ → b₁ ≡ a₂ ⊎ b₁ ≡ b₂
-pair-inverseᵣ a₁ b₁ a₂ b₂ a₁b₁≡a₂b₂ = to (pair-rule a₂ b₂ b₁) (subst (b₁ !!∈_) a₁b₁≡a₂b₂ (pair-ruleᵣ a₁ b₁))
+pair-inverseᵣ : (a₁ b₁ a₂ b₂ : NbgSet) → pair a₁ b₁ !!≡ pair a₂ b₂ → b₁ !!≡ a₂ ⊎ b₁ !!≡ b₂
+pair-inverseᵣ a₁ b₁ a₂ b₂ a₁b₁≡a₂b₂ = to (pair-rule a₂ b₂ b₁) (subst (b₁ !∈_) a₁b₁≡a₂b₂ (pair-ruleᵣ a₁ b₁))
 
-orderedPair-inverse : (a₁ b₁ a₂ b₂ : NbgSet) → orderedPair a₁ b₁ ≡ orderedPair a₂ b₂ → a₁ ≡ a₂ × b₁ ≡ b₂
+orderedPair-inverse : (a₁ b₁ a₂ b₂ : NbgSet) → orderedPair a₁ b₁ !!≡ orderedPair a₂ b₂ → a₁ !!≡ a₂ × b₁ !!≡ b₂
 orderedPair-inverse a₁ b₁ a₂ b₂ a₁b₁≡a₂b₂ = a₁≡a₂ , b₁≡b₂
   where
     a₁∉a₁ : ¬ (a₁ !!∈ a₁)
@@ -313,52 +338,45 @@ orderedPair-inverse a₁ b₁ a₂ b₂ a₁b₁≡a₂b₂ = a₁≡a₂ , b₁
     a₁≢pair₁ : ¬ (a₁ ≡ pair a₁ b₁)
     a₁≢pair₁ = λ a₁≡pair₁ → a₁∉a₁ (subst (a₁ !!∈_) (sym a₁≡pair₁) a₁∈pair₁)
 
-    pair₁≡a₂⊎pair₁≡pair₂ : pair a₁ b₁ ≡ a₂ ⊎ pair a₁ b₁ ≡ pair a₂ b₂
+    pair₁≡a₂⊎pair₁≡pair₂ : pair a₁ b₁ !!≡ a₂ ⊎ pair a₁ b₁ !!≡ pair a₂ b₂
     pair₁≡a₂⊎pair₁≡pair₂ = pair-inverseᵣ a₁ (pair a₁ b₁) a₂ (pair a₂ b₂) a₁b₁≡a₂b₂
 
-    a₁≡a₂⊎a₁≡pair₂ : a₁ ≡ a₂ ⊎ a₁ ≡ pair a₂ b₂
+    a₁≡a₂⊎a₁≡pair₂ : a₁ !!≡ a₂ ⊎ a₁ !!≡ pair a₂ b₂
     a₁≡a₂⊎a₁≡pair₂ = pair-inverseₗ a₁ (pair a₁ b₁) a₂ (pair a₂ b₂) a₁b₁≡a₂b₂
 
-    ¬a₁≡a₂×pair₁≡a₂ : ¬ (a₁ ≡ a₂ × pair a₁ b₁ ≡ a₂)
-    ¬a₁≡a₂×pair₁≡a₂ (a₁≡a₂ , pair₁≡a₂) = a₁≢pair₁ (trans a₁≡a₂ (sym pair₁≡a₂))
+    ¬a₁≡a₂×pair₁≡a₂ : ¬ (a₁ !!≡ a₂ × pair a₁ b₁ !!≡ a₂)
+--    ¬a₁≡a₂×pair₁≡a₂ (a₁≡a₂ , pair₁≡a₂) = a₁≢pair₁ (trans a₁≡a₂ (sym pair₁≡a₂))
+    ¬a₁≡a₂×pair₁≡a₂ (a₁≡a₂ , pair₁≡a₂) = ?
 
-    ¬a₁≡pair₂×pair₁≡pair₂ : ¬ (a₁ ≡ pair a₂ b₂ × pair a₁ b₁ ≡ pair a₂ b₂)
-    ¬a₁≡pair₂×pair₁≡pair₂ (a₁≡pair₂ , pair₁≡pair₂) = a₁≢pair₁ (trans a₁≡pair₂ (sym pair₁≡pair₂))
+    ¬a₁≡pair₂×pair₁≡pair₂ : ¬ (a₁ !!≡ pair a₂ b₂ × pair a₁ b₁ !!≡ pair a₂ b₂)
+    ¬a₁≡pair₂×pair₁≡pair₂ (a₁≡pair₂ , pair₁≡pair₂) = ?
+--    ¬a₁≡pair₂×pair₁≡pair₂ (a₁≡pair₂ , pair₁≡pair₂) = a₁≢pair₁ (trans a₁≡pair₂ (sym pair₁≡pair₂))
 
-    ¬a₁≡pair₂×pair₁≡a₂ : ¬ (a₁ ≡ pair a₂ b₂ × pair a₁ b₁ ≡ a₂)
+    ¬a₁≡pair₂×pair₁≡a₂ : ¬ (a₁ !!≡ pair a₂ b₂ × pair a₁ b₁ !!≡ a₂)
     ¬a₁≡pair₂×pair₁≡a₂ (a₁≡pair₂ , pair₁≡a₂) = ¬x∈y×y∈x a₁ a₂ (a₁∈a₂ , a₂∈a₁)
       where
         a₁∈a₂ : a₁ !!∈ a₂
-        a₁∈a₂ = subst (a₁ !!∈_) pair₁≡a₂ (pair-ruleₗ a₁ b₁)
+        a₁∈a₂ = subst (a₁ !∈_) pair₁≡a₂ (pair-ruleₗ a₁ b₁)
         a₂∈a₁ : a₂ !!∈ a₁
-        a₂∈a₁ = subst (a₂ !!∈_) (sym a₁≡pair₂) (pair-ruleₗ a₂ b₂)
+        a₂∈a₁ = subst (a₂ !∈_) (sym a₁≡pair₂) (pair-ruleₗ a₂ b₂)
 
-    ¬a₁≡pair₂ : ¬ (a₁ ≡ pair a₂ b₂)
+    ¬a₁≡pair₂ : ¬ (a₁ !!≡ pair a₂ b₂)
     ¬a₁≡pair₂ = [ (λ pair₁≡a₂ a₁≡pair₂ → ¬a₁≡pair₂×pair₁≡a₂ (a₁≡pair₂ , pair₁≡a₂)) , (λ pair₁≡pair₂ a₁≡pair₂ → ¬a₁≡pair₂×pair₁≡pair₂ ( a₁≡pair₂ , pair₁≡pair₂)) ] pair₁≡a₂⊎pair₁≡pair₂
 
-    a₁≡a₂ : a₁ ≡ a₂
+    a₁≡a₂ : a₁ !!≡ a₂
     a₁≡a₂ = A⊎B×¬B⇒A a₁≡a₂⊎a₁≡pair₂ ¬a₁≡pair₂
 
-    ¬pair₁≡a₂ : ¬ (pair a₁ b₁ ≡ a₂)
+    ¬pair₁≡a₂ : ¬ (pair a₁ b₁ !!≡ a₂)
     ¬pair₁≡a₂ = [ (λ a₁≡a₂ pair₁≡a₂ → ¬a₁≡a₂×pair₁≡a₂ (a₁≡a₂ , pair₁≡a₂)) , (λ a₁≡pair₂ pair₁≡a₂ → ¬a₁≡pair₂×pair₁≡a₂ (a₁≡pair₂ , pair₁≡a₂)) ] a₁≡a₂⊎a₁≡pair₂
 
-    pair₁≡pair₂ : pair a₁ b₁ ≡ pair a₂ b₂
+    pair₁≡pair₂ : pair a₁ b₁ !!≡ pair a₂ b₂
     pair₁≡pair₂ = A⊎B×¬A⇒B pair₁≡a₂⊎pair₁≡pair₂ ¬pair₁≡a₂
 
-    b₂≡a₁⊎b₂≡b₁ : b₂ ≡ a₁ ⊎ b₂ ≡ b₁
+    b₂≡a₁⊎b₂≡b₁ : b₂ !!≡ a₁ ⊎ b₂ !!≡ b₁
     b₂≡a₁⊎b₂≡b₁ = pair-inverseᵣ a₂ b₂ a₁ b₁ (sym pair₁≡pair₂)
     
-    b₁≡b₂ : b₁ ≡ b₂
+    b₁≡b₂ : b₁ !!≡ b₂
     b₁≡b₂ = [ (λ b₁≡a₂ → [ (λ b₂≡a₁ → trans (trans b₁≡a₂ (sym a₁≡a₂)) (sym b₂≡a₁)) , sym ] b₂≡a₁⊎b₂≡b₁) , id ] (pair-inverseᵣ a₁ b₁ a₂ b₂ pair₁≡pair₂)
-
-⊘≡⊘-class : proj₁ ⊘ ≡ ⊘-class
-⊘≡⊘-class = extensionality (proj₁ ⊘) ⊘-class λ x → record { to = λ x∈⊘ → ⊥-elim (⊘-empty x x∈⊘) ; from = λ x∈⊘-class → ⊥-elim (⊘-class-empty x x∈⊘-class) }
-
-∁-involutory : (A : NbgClass) → A ≡ ∁ (∁ A)
-∁-involutory A = extensionality A (∁ (∁ A))
-  λ x → record { to = λ x∈A → ¬¬A→A λ ¬x∈∁∁A → to (∁-rule A x) x∈A (from (∁-rule (∁ A) x) ¬x∈∁∁A)
-                ; from = λ x∈∁∁A → ¬¬A→A λ ¬x∈A → contraposition (to (∁-rule (∁ A) x)) (A→¬¬A x∈∁∁A) (¬¬A→A (contraposition (from (∁-rule A x)) ¬x∈A))
-                }
 
 data NbgVariable : (xᵒ : ℕ) →  Set where
   x' : (i : ℕ) → NbgVariable (suc i)
@@ -375,8 +393,8 @@ data NbgExpression : (xᵒ Yᵒ : ℕ) → Set where
   ¬' : {xᵒ Yᵒ : ℕ} → NbgExpression xᵒ Yᵒ → NbgExpression xᵒ Yᵒ
 infix  8 _∈'_
 infix  3 _⇔'_
-NbgExpression-transport : {xᵒ₁ Yᵒ₁ xᵒ₂ Yᵒ₂ : ℕ} → xᵒ₁ ≡ xᵒ₂ → Yᵒ₁ ≡ Yᵒ₂ → NbgExpression xᵒ₁ Yᵒ₁ → NbgExpression xᵒ₂ Yᵒ₂
-NbgExpression-transport refl refl exp = exp
+NbgExpression-subst : {xᵒ₁ Yᵒ₁ xᵒ₂ Yᵒ₂ : ℕ} → xᵒ₁ ≡ xᵒ₂ → Yᵒ₁ ≡ Yᵒ₂ → NbgExpression xᵒ₁ Yᵒ₁ → NbgExpression xᵒ₂ Yᵒ₂
+NbgExpression-subst refl refl exp = exp
 
 data NbgIntermediateExpression : (xᵒ Yᵒ : ℕ) → Set where
   _∈'_ : {xᵒ₁ xᵒ₂ Yᵒ : ℕ} → NbgVariable xᵒ₁ → NbgVariable xᵒ₂ → NbgIntermediateExpression (xᵒ₁ ⊔ xᵒ₂) Yᵒ
@@ -387,16 +405,16 @@ data NbgIntermediateExpression : (xᵒ Yᵒ : ℕ) → Set where
   ∃' : {Yᵒ : ℕ} → (i : ℕ) → NbgIntermediateExpression (suc i) Yᵒ → NbgIntermediateExpression i Yᵒ
   ∀' : {Yᵒ : ℕ} → (i : ℕ) → NbgIntermediateExpression (suc i) Yᵒ → NbgIntermediateExpression i Yᵒ
   ¬' : {xᵒ Yᵒ : ℕ} → NbgIntermediateExpression xᵒ Yᵒ → NbgIntermediateExpression xᵒ Yᵒ
-NbgIntermediateExpression-transport : {xᵒ₁ Yᵒ₁ xᵒ₂ Yᵒ₂ : ℕ} → xᵒ₁ ≡ xᵒ₂ → Yᵒ₁ ≡ Yᵒ₂ → NbgIntermediateExpression xᵒ₁ Yᵒ₁ → NbgIntermediateExpression xᵒ₂ Yᵒ₂
-NbgIntermediateExpression-transport refl refl exp = exp
+NbgIntermediateExpression-subst : {xᵒ₁ Yᵒ₁ xᵒ₂ Yᵒ₂ : ℕ} → xᵒ₁ ≡ xᵒ₂ → Yᵒ₁ ≡ Yᵒ₂ → NbgIntermediateExpression xᵒ₁ Yᵒ₁ → NbgIntermediateExpression xᵒ₂ Yᵒ₂
+NbgIntermediateExpression-subst refl refl exp = exp
 
 data NbgSimpleExpression : (xᵒ Yᵒ : ℕ) → Set where
   _∈'_ : {xᵒ₁ xᵒ₂ Yᵒ : ℕ} → NbgVariable xᵒ₁ → NbgVariable xᵒ₂ → NbgSimpleExpression (xᵒ₁ ⊔ xᵒ₂) Yᵒ
   _∧'_ : {xᵒ₁ Yᵒ₁ xᵒ₂ Yᵒ₂ : ℕ} → NbgSimpleExpression xᵒ₁ Yᵒ₁ → NbgSimpleExpression xᵒ₂ Yᵒ₂ → NbgSimpleExpression (xᵒ₁ ⊔ xᵒ₂) (Yᵒ₁ ⊔ Yᵒ₂)
   ∃' : {Yᵒ : ℕ} → (i : ℕ) → NbgSimpleExpression (suc i) Yᵒ → NbgSimpleExpression i Yᵒ
   ¬' : {xᵒ Yᵒ : ℕ} → NbgSimpleExpression xᵒ Yᵒ → NbgSimpleExpression xᵒ Yᵒ
-NbgSimpleExpression-transport : {xᵒ₁ Yᵒ₁ xᵒ₂ Yᵒ₂ : ℕ} → xᵒ₁ ≡ xᵒ₂ → Yᵒ₁ ≡ Yᵒ₂ → NbgSimpleExpression xᵒ₁ Yᵒ₁ → NbgSimpleExpression xᵒ₂ Yᵒ₂
-NbgSimpleExpression-transport refl refl exp = exp
+NbgSimpleExpression-subst : {xᵒ₁ Yᵒ₁ xᵒ₂ Yᵒ₂ : ℕ} → xᵒ₁ ≡ xᵒ₂ → Yᵒ₁ ≡ Yᵒ₂ → NbgSimpleExpression xᵒ₁ Yᵒ₁ → NbgSimpleExpression xᵒ₂ Yᵒ₂
+NbgSimpleExpression-subst refl refl exp = exp
 
 ≤-step : ∀ {m n} → m ≤ n → m ≤ suc n
 ≤-step z≤n = z≤n
@@ -404,9 +422,9 @@ NbgSimpleExpression-transport refl refl exp = exp
 
 convert-to-intermediate : {xᵒ Yᵒ : ℕ} → NbgExpression xᵒ Yᵒ → NbgIntermediateExpression xᵒ Yᵒ
 convert-to-intermediate (x ∈' x₁) = x ∈' x₁
-convert-to-intermediate {xᵒ = .(suc (i₁ ⊔ i₂))} {Yᵒ = Yᵒ} (x' i₁ =' x' i₂) = ∃' (suc (i₁ ⊔ i₂)) (transport-function (_⇔'_ {Yᵒ₁ = Yᵒ} {Yᵒ₂ = Yᵒ} (x' (suc (i₁ ⊔ i₂)) ∈' x' i₁) (x' (suc (i₁ ⊔ i₂)) ∈' x' i₂)))
+convert-to-intermediate {xᵒ = .(suc (i₁ ⊔ i₂))} {Yᵒ = Yᵒ} (x' i₁ =' x' i₂) = ∃' (suc (i₁ ⊔ i₂)) (subst-function (_⇔'_ {Yᵒ₁ = Yᵒ} {Yᵒ₂ = Yᵒ} (x' (suc (i₁ ⊔ i₂)) ∈' x' i₁) (x' (suc (i₁ ⊔ i₂)) ∈' x' i₂)))
  where
-  transport-function = NbgIntermediateExpression-transport (cong suc (trans (cong₂ _⊔_ (m≤n⇒n⊔m≡n (≤-step (m≤m⊔n i₁ i₂))) (m≤n⇒n⊔m≡n (≤-step (n≤m⊔n i₁ i₂)))) (⊔-idem (suc (i₁ ⊔ i₂))))) (⊔-idem Yᵒ)
+  subst-function = NbgIntermediateExpression-subst (cong suc (trans (cong₂ _⊔_ (m≤n⇒n⊔m≡n (≤-step (m≤m⊔n i₁ i₂))) (m≤n⇒n⊔m≡n (≤-step (n≤m⊔n i₁ i₂)))) (⊔-idem (suc (i₁ ⊔ i₂))))) (⊔-idem Yᵒ)
 convert-to-intermediate (exp ∧' exp₁) = convert-to-intermediate exp ∧' convert-to-intermediate exp₁
 convert-to-intermediate (exp ∨' exp₁) = convert-to-intermediate exp ∨' convert-to-intermediate exp₁
 convert-to-intermediate (exp ⇔' exp₁) = convert-to-intermediate exp ⇔' convert-to-intermediate exp₁
@@ -419,10 +437,10 @@ int-to-simple : {xᵒ Yᵒ : ℕ} → NbgIntermediateExpression xᵒ Yᵒ → Nb
 int-to-simple {.(suc (i ⊔ i₁))} {Yᵒ} (x' i ∈' x' i₁) = x' i ∈' x' i₁
 int-to-simple {.(xᵒ₁ ⊔ xᵒ₂)} {.(Yᵒ₁ ⊔ Yᵒ₂)} (_∧'_ {xᵒ₁} {Yᵒ₁} {xᵒ₂} {Yᵒ₂} exp₁ exp₂) = int-to-simple exp₁ ∧' int-to-simple exp₂
 int-to-simple {.(xᵒ₁ ⊔ xᵒ₂)} {.(Yᵒ₁ ⊔ Yᵒ₂)} (_∨'_ {xᵒ₁} {Yᵒ₁} {xᵒ₂} {Yᵒ₂} exp₁ exp₂) = ¬' ((¬' (int-to-simple exp₁)) ∧' (¬' (int-to-simple exp₂)))
-int-to-simple {.(xᵒ₁ ⊔ xᵒ₂)} {.(Yᵒ₁ ⊔ Yᵒ₂)} (_⇔'_ {xᵒ₁} {Yᵒ₁} {xᵒ₂} {Yᵒ₂} exp₁ exp₂) = idem-transport (_∧'_ {xᵒ₁ ⊔ xᵒ₂} {Yᵒ₁ ⊔ Yᵒ₂} {xᵒ₁ ⊔ xᵒ₂} {Yᵒ₁ ⊔ Yᵒ₂} (¬' (_∧'_ {xᵒ₁} {Yᵒ₁} {xᵒ₂} {Yᵒ₂} (int-to-simple exp₁) (¬' (int-to-simple exp₂)))) (¬' (comm-transport (_∧'_ {xᵒ₂} {Yᵒ₂} {xᵒ₁} {Yᵒ₁} (int-to-simple exp₂) (¬' (int-to-simple exp₁))))))
+int-to-simple {.(xᵒ₁ ⊔ xᵒ₂)} {.(Yᵒ₁ ⊔ Yᵒ₂)} (_⇔'_ {xᵒ₁} {Yᵒ₁} {xᵒ₂} {Yᵒ₂} exp₁ exp₂) = idem-subst (_∧'_ {xᵒ₁ ⊔ xᵒ₂} {Yᵒ₁ ⊔ Yᵒ₂} {xᵒ₁ ⊔ xᵒ₂} {Yᵒ₁ ⊔ Yᵒ₂} (¬' (_∧'_ {xᵒ₁} {Yᵒ₁} {xᵒ₂} {Yᵒ₂} (int-to-simple exp₁) (¬' (int-to-simple exp₂)))) (¬' (comm-subst (_∧'_ {xᵒ₂} {Yᵒ₂} {xᵒ₁} {Yᵒ₁} (int-to-simple exp₂) (¬' (int-to-simple exp₁))))))
  where
-  idem-transport = NbgSimpleExpression-transport (⊔-idem (xᵒ₁ ⊔ xᵒ₂)) (⊔-idem (Yᵒ₁ ⊔ Yᵒ₂))
-  comm-transport = NbgSimpleExpression-transport (⊔-comm xᵒ₂ xᵒ₁) (⊔-comm Yᵒ₂ Yᵒ₁)
+  idem-subst = NbgSimpleExpression-subst (⊔-idem (xᵒ₁ ⊔ xᵒ₂)) (⊔-idem (Yᵒ₁ ⊔ Yᵒ₂))
+  comm-subst = NbgSimpleExpression-subst (⊔-comm xᵒ₂ xᵒ₁) (⊔-comm Yᵒ₂ Yᵒ₁)
 int-to-simple {.(xᵒ₁ ⊔ xᵒ₂)} {.(Yᵒ₁ ⊔ Yᵒ₂)} (_⇒'_ {xᵒ₁} {Yᵒ₁} {xᵒ₂} {Yᵒ₂} exp₁ exp₂) = ¬' ((int-to-simple exp₁) ∧' (¬' (int-to-simple exp₂)))
 int-to-simple {xᵒ} {Yᵒ} (∃' .xᵒ exp) = ∃' xᵒ (int-to-simple exp)
 int-to-simple {xᵒ} {Yᵒ} (∀' .xᵒ exp) = ¬' (∃' xᵒ (¬' (int-to-simple exp)))
@@ -459,6 +477,10 @@ init-rule [] x = refl
 init-rule (x₁ ∷ []) x = refl
 init-rule (x₁ ∷ x₂ ∷ xs) x = cong (x₁ ∷_) (init-rule (x₂ ∷ xs) x)
 
+last-init-rule : {n-1 : ℕ} → {A : Set} → (xs : Vec A (suc n-1)) → init' xs +~ last' xs ≡ xs
+last-init-rule (x ∷ []) = refl
+last-init-rule (x₁ ∷ x₂ ∷ xs) = cong (x₁ ∷_) (last-init-rule (x₂ ∷ xs))
+
 n-tuple : {n-1 : ℕ} → Vec NbgSet (suc n-1) → NbgSet
 n-tuple (x ∷ []) = x
 n-tuple {suc n-1} (xs) = orderedPair (n-tuple (init' xs)) (last' xs)
@@ -476,6 +498,25 @@ n-tuple-suc {.(suc _)} (x₁ ∷ x₂ ∷ xs) x = cong₂ orderedPair (
     n-tuple (x₁ ∷ init' (x₂ ∷ xs +~ x))
   ∎)
   ((last-rule (x₂ ∷ xs) x))
+
+n-tuple-inverse : {n-1 : ℕ} (v₁ v₂ : Vec NbgSet (suc n-1)) → n-tuple v₁ !!≡ n-tuple v₂ → v₁ ≡ v₂
+n-tuple-inverse (x₁ ∷ []) (x₂ ∷ []) x₁≡x₂ = cong (_∷ []) x₁≡x₂
+n-tuple-inverse {suc n-1} (x₁ ∷ y₁ ∷ v₁) (x₂ ∷ y₂ ∷ v₂) triple₁≡triple₂ = subst₂ _!!≡_ (last-init-rule (x₁ ∷ y₁ ∷ v₁)) (last-init-rule (x₂ ∷ y₂ ∷ v₂)) (cong₂ _+~_ init₁≡init₂ last₁≡last₂)
+  where
+    init₁ : Vec NbgSet (suc n-1)
+    init₁ = init' (x₁ ∷ y₁ ∷ v₁)
+    init₂ : Vec NbgSet (suc n-1)
+    init₂ = init' (x₂ ∷ y₂ ∷ v₂)
+    last₁ : NbgSet
+    last₁ = last' (x₁ ∷ y₁ ∷ v₁)
+    last₂ : NbgSet
+    last₂ = last' (x₂ ∷ y₂ ∷ v₂)
+    pair₁≡pair₂ : n-tuple (init' (x₁ ∷ y₁ ∷ v₁)) ≡ n-tuple (init' (x₂ ∷ y₂ ∷ v₂))
+    pair₁≡pair₂ = proj₁ (orderedPair-inverse _ _ _ _ triple₁≡triple₂)
+    last₁≡last₂ : last₁ ≡ last₂
+    last₁≡last₂ = proj₂ (orderedPair-inverse _ _ _ _ triple₁≡triple₂)
+    init₁≡init₂ : init₁ ≡ init₂
+    init₁≡init₂ = n-tuple-inverse {n-1} init₁ init₂ pair₁≡pair₂
 
 ≤-helper : (m n : ℕ) → m ≤ n → suc m ≤ n + 1
 ≤-helper m n m≤n rewrite +-comm n 1 = s≤s m≤n
@@ -613,8 +654,83 @@ module tuple-lemma where
           z-rule : orderedPair (orderedPair y x) z !∈ yxz A
           z-rule = from (yxz-proof A x y x) xy∈A 
 
-_is-suc_tuples-satisfying_ : NbgClass → (n-1 : ℕ) → (R : Vec NbgSet (suc n-1) → Set) → Set
-_is-suc_tuples-satisfying_ P n-1 R = ∀ (u : NbgSet) → (u !∈ P) ⇔ (Σ[ v ∈ Vec NbgSet (suc n-1) ] (u ≡ n-tuple v × R v))
+_is-1+_tuples-satisfying_ : NbgClass → (n-1 : ℕ) → (R : Vec NbgSet (suc n-1) → Set) → Set
+_is-1+_tuples-satisfying_ P n-1 R = ∀ (u : NbgSet) → (u !∈ P) ⇔ (Σ[ v ∈ Vec NbgSet (suc n-1) ] (u ≡ n-tuple v × R v))
+
+1+_tuples-of_satisfy_ : (n-1 : ℕ) → NbgClass  → (R : Vec NbgSet (suc n-1) → Set) → Set
+1+ n-1 tuples-of P satisfy R = ∀ (v : Vec NbgSet (suc n-1)) → (n-tuple v !∈ P ⇔ R v)
+
+is-tuples⇒has-tuples : (P : NbgClass) → (n-1 : ℕ) → (R : Vec NbgSet (suc n-1) → Set) → (P is-1+ n-1 tuples-satisfying R) → (1+ n-1 tuples-of P satisfy R)
+is-tuples⇒has-tuples P n-1 R is-tuples v = record { to = to-helper
+                                                   ; from = λ Rv → from (is-tuples (n-tuple v)) (v , (refl , Rv))
+                                                   }
+  where
+    to-helper : (n-tuple v !∈ P → R v)
+    to-helper v∈P = subst R (sym v-equal) Rv'
+      where
+        is-tuples-result : Σ[ v' ∈ Vec NbgSet (suc n-1) ] (n-tuple v ≡ n-tuple v' × R v')
+        is-tuples-result = to (is-tuples (n-tuple v)) v∈P
+        v' : Vec NbgSet (suc n-1)
+        v' = proj₁ is-tuples-result
+        n-tuples-equal : n-tuple v ≡ n-tuple v'
+        n-tuples-equal = proj₁ (proj₂ is-tuples-result)
+        v-equal : v ≡ v'
+        v-equal = n-tuple-inverse v v' n-tuples-equal
+        Rv' : R v'
+        Rv' = proj₂ (proj₂ is-tuples-result)
+
+V^n-is-n-tuples : {n-1 : ℕ} → (V^1+ n-1) is-1+ n-1 tuples-satisfying (λ v → ⊤)
+V^n-is-n-tuples {0} u = record { to = λ u∈V → (u ∷ []) , (refl , tt)
+                              ; from = const (V-full u)
+                              }
+V^n-is-n-tuples {suc n-2} u = record { to = to-helper
+                                    ; from = from-helper
+                                    }
+  where
+    to-helper : u !∈ V^1+ (suc n-2) → Σ[ v ∈ Vec NbgSet (suc (suc n-2)) ] (u ≡ n-tuple v × ⊤)
+    to-helper u∈V^n = init-v +~ last-u , trans u≡initu×lastu (trans (cong (λ u' → orderedPair u' last-u) init-u≡tuplev) (n-tuple-suc init-v last-u)) , tt
+      where
+        to-×V-rule : Σ-syntax (NbgSet × NbgSet) (λ (x , y) →  u ≡ orderedPair x y × x !∈ V^1+ n-2)
+        to-×V-rule = to (×V-rule (V^1+ n-2) u) u∈V^n
+        init-u : NbgSet
+        init-u = proj₁ (proj₁ to-×V-rule)
+        last-u : NbgSet
+        last-u = proj₂ (proj₁ to-×V-rule)
+        u≡initu×lastu = proj₁ (proj₂ to-×V-rule)
+        init-u∈V^n-1 : init-u !∈ V^1+ n-2
+        init-u∈V^n-1 = proj₂ (proj₂ to-×V-rule)
+        recurse : (Σ[ v ∈ Vec NbgSet (suc n-2) ] (init-u ≡ n-tuple v × ⊤))
+        recurse = to (V^n-is-n-tuples {n-2} init-u) init-u∈V^n-1
+        init-v = proj₁ recurse
+        init-u≡tuplev = proj₁ (proj₂ recurse)
+    from-helper : Σ[ v ∈ Vec NbgSet (suc (suc n-2)) ] (u ≡ n-tuple v × ⊤) → u !∈ V^1+ (suc n-2)
+    from-helper u-is-ntuple = from-×V-rule ((init-u , last-u) , (u≡init-u,last-u , init-u∈V^n-1))
+      where
+        v : Vec NbgSet (suc (suc n-2))
+        v = proj₁ u-is-ntuple
+        u≡tuplev : u ≡ n-tuple v
+        u≡tuplev = proj₁ (proj₂ u-is-ntuple)
+        init-v : Vec NbgSet (suc n-2)
+        init-v = init' v
+        init-u : NbgSet
+        init-u = n-tuple init-v
+        last-u : NbgSet
+        last-u = last' v
+        recurse : Σ[ v' ∈ Vec NbgSet (suc n-2) ] (init-u ≡ n-tuple v' × ⊤) → init-u !∈ V^1+ n-2
+        recurse = from (V^n-is-n-tuples {n-2} init-u)
+        init-u∈V^n-1 : init-u !∈ V^1+ n-2
+        init-u∈V^n-1 = recurse (init-v , (refl , tt))
+        u≡init-u,last-u : u ≡ orderedPair init-u last-u
+        u≡init-u,last-u = begin
+            u
+          ≡⟨ u≡tuplev ⟩
+            n-tuple v
+          ≡⟨ sym (cong n-tuple (last-init-rule v)) ⟩
+            n-tuple ((init-v) +~ (last-u))
+          ≡⟨ sym (n-tuple-suc init-v last-u) ⟩
+            orderedPair init-u last-u
+          ∎
+        from-×V-rule = from (×V-rule (V^1+ n-2) u)
 
 <⇒≤ : {a b : ℕ} → (a < b) → (a ≤ b)
 <⇒≤ (s≤s z≤n) = z≤n
@@ -633,17 +749,17 @@ _is-suc_tuples-satisfying_ P n-1 R = ∀ (u : NbgSet) → (u !∈ P) ⇔ (Σ[ v 
 <⇒<s (s≤s (s≤s a<b)) = s≤s (<⇒<s (s≤s a<b))
 
 expansion-lemma : {i j n-1 : ℕ} → (i<j : i < j) → (j<n : j < suc n-1) → (P : NbgClass) → (R : (x₁ x₂ : NbgSet) → Set) →
-  (P is-suc 1 tuples-satisfying (λ (v) → R (head v) (head (tail v)))) →
-  Σ[ Q ∈ NbgClass ] (Q is-suc n-1 tuples-satisfying (λ v → R (lookup v (fromℕ< (≤-trans i<j (<⇒≤ j<n)))) (lookup v (fromℕ< j<n))))
-expansion-lemma {i} {j} {n-1} i<j j<n P R P-is-2-tuples-satisfying-R = {!!}
+  (P is-1+ 1 tuples-satisfying (λ (v) → R (head v) (head (tail v)))) →
+  Σ[ Q ∈ NbgClass ] (1+ n-1 tuples-of Q satisfy (λ v → R (lookup v (fromℕ< (≤-trans i<j (<⇒≤ j<n)))) (lookup v (fromℕ< j<n))))
+expansion-lemma {i} {j} {n-1} i<j j<n P R 2-tuples-of-P-satisfy-R = {!!}
   where
-    lemma₁ : Σ[ P₁ ∈ NbgClass ] (P₁ is-suc (suc i) tuples-satisfying (λ v → R (lookup v (fromℕ< {i} <ss)) (lookup v (fromℕ< {suc i} <s))))
+    lemma₁ : Σ[ P₁ ∈ NbgClass ] (1+ (suc i) tuples-of P₁ satisfy (λ v → R (lookup v (fromℕ< {i} <ss)) (lookup v (fromℕ< {suc i} <s))))
     lemma₁ = {!!} , {!!}
       where
         P₁ = {!tuple-lemma.lemma₁ P!}
 
-    lemma₂ : Σ[ P₁ ∈ NbgClass ] (P₁ is-suc j tuples-satisfying (λ v → R (lookup v (fromℕ< {i} (<⇒<s i<j))) (lookup v (fromℕ< {j} <s))))
-    lemma₂ = {!!}
+    lemma₂ : Σ[ P₁ ∈ NbgClass ] (1+ j tuples-of P₁ satisfy (λ v → R (lookup v (fromℕ< {i} (<⇒<s i<j))) (lookup v (fromℕ< {j} <s))))
+    lemma₂ = {!!} , {!!}
 
 simple-class-existence-theorem : {|x|-1 xᵒ |Y| Yᵒ : ℕ} → {xᵒ≤|x| : xᵒ ≤ suc |x|-1} → {Yᵒ≤|Y| : Yᵒ ≤ |Y|} → (exp : NbgSimpleExpression (xᵒ) Yᵒ) → (Ys : Vec NbgClass |Y|) →
   Σ[ X ∈ NbgClass ] (∀ (xs : Vec NbgSet (suc |x|-1)) → n-tuple xs !∈ X ⇔ (simple-expression-set {suc |x|-1} {|Y|} {xᵒ} {Yᵒ} {xᵒ≤|x| = xᵒ≤|x|} {Yᵒ≤|Y| = Yᵒ≤|Y|} exp xs Ys))
@@ -682,7 +798,7 @@ simple-class-existence-theorem {|x|-1 = |x|-1} {xᵒ = xᵒ}  {xᵒ≤|x| = xᵒ
 
 simple-class-existence-theorem {xᵒ≤|x| = xᵒ≤|x|} {Yᵒ≤|Y| = Yᵒ≤|Y|} (¬' exp) Ys = ∁ class , λ xs →
   ⇔-trans (∁-rule (∁ class) (n-tuple xs)) (
-  ⇔-trans ((⇔-transport {P = λ x → (¬ n-tuple xs !∈ x)} (sym (∁-involutory class ))))
+  ⇔-trans ((⇔-subst {P = λ x → (¬ n-tuple xs !∈ x)} (sym (∁-involutory class ))))
   (⇔-converse (proof xs)))
   where
     class-proof = simple-class-existence-theorem {xᵒ≤|x| = xᵒ≤|x|} {Yᵒ≤|Y| = Yᵒ≤|Y|} exp Ys
@@ -730,19 +846,6 @@ m≤n⇒n≡n-m+m {(suc m)} {(suc n)} (s≤s m≤n) rewrite +-suc (n ∸ m) m = 
 test : NbgExpression 4 0
 test = ∃' 4 ( (x' 1) ∈' x' 4)
 
-⊘≡∁V : ⊘-class ≡ ∁ V
-⊘≡∁V = ∁-involutory ⊘-class
-
-V-full : (x : NbgSet) → x !∈ V
-V-full x = from (∁-rule V x) ∁V-empty
-  where
-    empty = λ A → ¬ x !∈ A
-    ∁V-empty = transport {P = empty} ⊘≡∁V (⊘-class-empty x)
-
-V^1+ : (n : ℕ) → NbgClass
-V^1+ zero = V
-V^1+ (suc n) = ×V (V^1+ n)
-
 isSet⇔∈V : (x : NbgClass) → isSet x ⇔ x ∈ V
 isSet⇔∈V x = record { to = λ isSetx → V-full (x , isSetx)
                      ; from = λ x∈V → V , x∈V
@@ -761,4 +864,4 @@ isSet⇔∈V x = record { to = λ isSetx → V-full (x , isSetx)
 -- ∁ (Dom (∁ (∁ ({ (x₁, x₂, x₃) : ¬ x₃ ∈ x₂ } ∩ { (x₁, x₂, x₃) : ¬ x₃ ∈ x₂ }) ∩ V^1+ 2 ∩ ∁ { (x₁, x₂, x₃) : x₃ ∈ x₂ ∨ ¬ x₃ ∈ x₁ }) ∩ V^1+ 2)) ∩ V^1+ 1
 
 -- ⊆isSet→isSet : ∀ (a : NbgSet) → (B : NbgClass) → B ⊆ proj₁ a → isSet B
--- ⊆isSet→isSet a B B∈a = transport {P = isSet} {!!} {!isSet b!}
+-- ⊆isSet→isSet a B B∈a = subst {P = isSet} {!!} {!isSet b!}
